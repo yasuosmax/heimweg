@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#04070e">
+    <title>Heimweg</title>
+    <link rel="stylesheet" href="/notfall.css">
+</head>
+<body>
+    <main>
+        <section id="anmelden">
+            <h1>Heimweg</h1>
+            <form id="pin-form">
+                <label for="pin">PIN</label>
+                <input id="pin" type="password" inputmode="numeric" autocomplete="off" required autofocus>
+                <button type="submit">Entsperren</button>
+                <p id="pin-hinweis" class="hinweis" role="alert"></p>
+            </form>
+        </section>
+
+        <section id="suche" hidden>
+            <h1>Bring mich heim</h1>
+            <fieldset id="ziele"><legend>Wohin?</legend></fieldset>
+            <label class="schalter"><input id="regio" type="checkbox"> Nur Nahverkehr</label>
+            <button id="standort" type="button">Mit meinem Standort suchen</button>
+            <form id="ort-form">
+                <label for="ort">Oder Bahnhof eingeben</label>
+                <input id="ort" type="text" autocomplete="off" enterkeyhint="search">
+                <button type="submit" class="zweitrangig">Ab diesem Bahnhof suchen</button>
+            </form>
+            <p id="such-hinweis" class="hinweis" role="alert"></p>
+        </section>
+
+        <section id="ergebnis" aria-live="polite" hidden></section>
+    </main>
+    <footer>
+        Daten: <a href="https://transitous.org/sources/" rel="noreferrer">Transitous</a>,
+        <a href="https://www.openstreetmap.org/copyright" rel="noreferrer">OpenStreetMap</a>
+    </footer>
+    <script src="/notfall.js" defer></script>
+</body>
+</html>

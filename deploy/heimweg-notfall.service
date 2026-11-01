@@ -1,0 +1,25 @@
+[Unit]
+Description=Heimweg Notfall-Seite (nur 127.0.0.1:8353, von aussen nur ueber den Webserver)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heimweg
+Group=heimweg
+EnvironmentFile=/etc/heimweg.env
+ExecStart=/opt/heimweg/.venv/bin/uvicorn heimweg.notfall:app --host 127.0.0.1 --port 8353 --no-access-log --no-proxy-headers --no-server-header
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+MemoryMax=200M
+
+[Install]
+WantedBy=multi-user.target
