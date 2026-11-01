@@ -40,7 +40,7 @@ def _adresse(request: Request) -> str:
     """Hinter Caddy steht die echte Adresse im letzten Eintrag, davor kann jeder alles schreiben."""
     host = request.client.host if request.client else ""
     weiter = request.headers.get("x-forwarded-for", "")
-    if host in ("127.0.0.1", "::1") and weiter:
+    if host in ("", "127.0.0.1", "::1") and weiter:      # leer: Unix-Socket, dort steht nur der Webserver
         return weiter.split(",")[-1].strip()
     return host
 
@@ -102,6 +102,7 @@ def erstellen(umgebung) -> FastAPI:
     suchen: dict[str, list[float]] = {}
     tag = {"datum": None, "zahl": 0}
     ziel_orte: dict[str, quellen.Ort] = {}
+    schloss = asyncio.Lock()
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
     def unterschrift(ablauf: int) -> str:
@@ -147,16 +148,17 @@ def erstellen(umgebung) -> FastAPI:
     @app.post("/pin")
     async def pin(request: Request):
         adresse = _adresse(request)
-        if bremse.gesperrt(adresse):
-            return JSONResponse({"ok": False}, 429, headers={"Retry-After": str(SPERRE_ADRESSE[1])})
         eingabe = (await _koerper(request)).get("pin")
-        if isinstance(eingabe, str) and eingabe and await asyncio.to_thread(pin_passt, eingabe, pin_wert):
-            ablauf = int(time.time()) + SITZUNG_S
-            antwort = JSONResponse({"ok": True, "ziele": ziele})
-            antwort.set_cookie(COOKIE, f"{ablauf}.{unterschrift(ablauf)}", max_age=SITZUNG_S, httponly=True,
-                               secure=True, samesite="strict")
-            return antwort
-        bremse.fehlversuch(adresse)
+        async with schloss:     # Pruefen und Zaehlen am Stueck, sonst laeuft eine Salve an der Bremse vorbei
+            if bremse.gesperrt(adresse):
+                return JSONResponse({"ok": False}, 429, headers={"Retry-After": str(SPERRE_ADRESSE[1])})
+            if isinstance(eingabe, str) and eingabe and await asyncio.to_thread(pin_passt, eingabe, pin_wert):
+                ablauf = int(time.time()) + SITZUNG_S
+                antwort = JSONResponse({"ok": True, "ziele": ziele})
+                antwort.set_cookie(COOKIE, f"{ablauf}.{unterschrift(ablauf)}", max_age=SITZUNG_S, httponly=True,
+                                   secure=True, samesite="strict")
+                return antwort
+            bremse.fehlversuch(adresse)
         return JSONResponse({"ok": False}, 403)
 
     @app.post("/suche")

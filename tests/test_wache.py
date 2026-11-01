@@ -96,6 +96,14 @@ class Melden(unittest.TestCase):
         self.assertEqual([x.art for x in e], ["lebenszeichen"])
         self.assertIn("Gleis 17", e[0].text)
 
+    def test_lebenszeichen_ohne_live_daten_sagt_nur_fahrplan(self):
+        v = umsteigen()
+        for a in v.abschnitte:
+            a.live = False
+        e = self.pruefe(v, jetzt=uhr(5, 7))
+        self.assertIn("Laut Fahrplan", e[0].text)
+        self.assertNotIn("Noch im Plan", e[0].text)
+
     def test_fuenf_minuten_ohne_daten_meldet_quelle_stumm(self):
         self.assertEqual(self.pruefe(None, jetzt=uhr(5, 4), stumm_seit=uhr(5, 0)), [])
         e = self.pruefe(None, jetzt=uhr(5, 5), stumm_seit=uhr(5, 0))
@@ -119,18 +127,18 @@ class Melden(unittest.TestCase):
 
 class NaechsterHalt(unittest.TestCase):
     def test_vor_abfahrt_ist_es_der_start(self):
-        self.assertEqual(wache.naechster_erreichbarer_halt(umsteigen(), uhr(5, 0)), "Frankfurt Hbf")
+        self.assertEqual(wache.naechster_erreichbarer_halt(umsteigen(), uhr(5, 0)), ("Frankfurt Hbf", uhr(5, 0)))
 
     def test_auf_der_fahrt_ist_es_der_naechste_halt(self):
         h = [quellen.Halt("Frankfurt Hbf", uhr(5, 15), uhr(5, 15), "17", False),
-             quellen.Halt("Darmstadt Hbf", uhr(5, 40), uhr(5, 40), "2", False),
+             quellen.Halt("Darmstadt Hbf", uhr(5, 40), uhr(5, 40), "2", False, uhr(5, 38), uhr(5, 39)),
              quellen.Halt("Mannheim Hbf", None, None, "7", False)]
         v = umsteigen()
         v.abschnitte[0].halte = h
-        self.assertEqual(wache.naechster_erreichbarer_halt(v, uhr(5, 20)), "Darmstadt Hbf")
+        self.assertEqual(wache.naechster_erreichbarer_halt(v, uhr(5, 20)), ("Darmstadt Hbf", uhr(5, 42)))
 
     def test_ohne_haltedaten_ist_es_das_abschnittsende(self):
-        self.assertEqual(wache.naechster_erreichbarer_halt(umsteigen(), uhr(5, 20)), "Mannheim Hbf")
+        self.assertEqual(wache.naechster_erreichbarer_halt(umsteigen(), uhr(5, 20)), ("Mannheim Hbf", uhr(6, 23)))
 
     def test_beim_umstieg_ist_es_der_umstiegsbahnhof(self):
-        self.assertEqual(wache.naechster_erreichbarer_halt(umsteigen(), uhr(6, 22)), "Mannheim Hbf")
+        self.assertEqual(wache.naechster_erreichbarer_halt(umsteigen(), uhr(6, 22)), ("Mannheim Hbf", uhr(6, 22)))

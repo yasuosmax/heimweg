@@ -11,7 +11,7 @@ from heimweg import quellen
 PROBEN = pathlib.Path(__file__).parent / "proben"
 BERLIN = ZoneInfo("Europe/Berlin")
 FF = quellen.Ort("Frankfurt Hbf", 50.10712, 8.66381)
-HD = quellen.Ort("Darmstadt Hbf", 49.40361, 8.67568, "de-DELFI_de:08221:1160")
+ZIEL = quellen.Ort("Darmstadt Hbf", 49.87234, 8.62968, "stop-darmstadt-hbf")
 JETZT = dt.datetime(2026, 11, 1, 4, 13, tzinfo=BERLIN)
 
 
@@ -51,8 +51,8 @@ class Zeiten(unittest.TestCase):
 
 class Plan(Basis):
     def test_re70_aus_probe(self):
-        self.antwort = probe("plan_ff_hd.json")
-        verbindungen = quellen.plane(FF, HD, JETZT)
+        self.antwort = probe("plan_probe.json")
+        verbindungen = quellen.plane(FF, ZIEL, JETZT)
         re70 = next(a for v in verbindungen for a in v.abschnitte if a.linie == "RE70")
         self.assertEqual(re70.gleis_ab, "17")
         self.assertEqual(re70.art, "nah")
@@ -61,8 +61,8 @@ class Plan(Basis):
         self.assertTrue(re70.live)
 
     def test_verbindung_rechnet_umstiege_und_dauer(self):
-        self.antwort = probe("plan_ff_hd.json")
-        v = next(v for v in quellen.plane(FF, HD, JETZT)
+        self.antwort = probe("plan_probe.json")
+        v = next(v for v in quellen.plane(FF, ZIEL, JETZT)
                  if any(a.linie == "RE70" for a in v.abschnitte))
         self.assertEqual(v.umstiege, 1)
         self.assertEqual(v.dauer_min, 96)
@@ -70,13 +70,13 @@ class Plan(Basis):
         self.assertEqual([a.linie for a in v.zuege], ["RE70", "S1"])
 
     def test_fernzug_ist_fern(self):
-        self.antwort = probe("plan_ff_hd.json")
-        v = quellen.plane(FF, HD, JETZT)[0]
+        self.antwort = probe("plan_probe.json")
+        v = quellen.plane(FF, ZIEL, JETZT)[0]
         self.assertTrue(v.fern)
 
     def test_regio_filter_schickt_keine_fernarten(self):
         self.antwort = {"itineraries": []}
-        quellen.plane(FF, HD, JETZT, nur_regio=True)
+        quellen.plane(FF, ZIEL, JETZT, nur_regio=True)
         arten = self.anfragen[0].url.params["transitModes"].split(",")
         self.assertIn("REGIONAL_RAIL", arten)
         for fern in ("HIGHSPEED_RAIL", "LONG_DISTANCE", "NIGHT_RAIL", "COACH", "AIRPLANE"):
@@ -84,7 +84,7 @@ class Plan(Basis):
 
     def test_alle_zuege_ohne_bus_fernlinie_und_flugzeug(self):
         self.antwort = {"itineraries": []}
-        quellen.plane(FF, HD, JETZT)
+        quellen.plane(FF, ZIEL, JETZT)
         arten = self.anfragen[0].url.params["transitModes"].split(",")
         self.assertIn("HIGHSPEED_RAIL", arten)
         self.assertNotIn("COACH", arten)
@@ -92,17 +92,17 @@ class Plan(Basis):
 
     def test_koordinaten_gerundet(self):
         self.antwort = {"itineraries": []}
-        quellen.plane(quellen.Ort("Hier", 49.40361, 8.67568), HD, JETZT)
-        self.assertEqual(self.anfragen[0].url.params["fromPlace"], "49.404,8.676")
+        quellen.plane(quellen.Ort("Hier", 49.87234, 8.62968), ZIEL, JETZT)
+        self.assertEqual(self.anfragen[0].url.params["fromPlace"], "49.872,8.63")
 
     def test_haltestelle_geht_mit_kennung_raus(self):
         self.antwort = {"itineraries": []}
-        quellen.plane(FF, HD, JETZT)
-        self.assertEqual(self.anfragen[0].url.params["toPlace"], HD.stop_id)
+        quellen.plane(FF, ZIEL, JETZT)
+        self.assertEqual(self.anfragen[0].url.params["toPlace"], ZIEL.stop_id)
 
     def test_user_agent_hat_name_version_repo(self):
         self.antwort = {"itineraries": []}
-        quellen.plane(FF, HD, JETZT)
+        quellen.plane(FF, ZIEL, JETZT)
         ua = self.anfragen[0].headers["user-agent"]
         self.assertIn("heimweg/", ua)
         self.assertIn("github.com/yasuosmax/heimweg", ua)
@@ -110,35 +110,35 @@ class Plan(Basis):
     def test_zeitueberschreitung_gibt_quellewege(self):
         self.antwort = httpx.ReadTimeout("zu langsam")
         with self.assertRaises(quellen.QuelleWeg):
-            quellen.plane(FF, HD, JETZT)
+            quellen.plane(FF, ZIEL, JETZT)
         self.assertEqual(len(self.anfragen), 2, "ein zweiter Versuch")
 
     def test_serverfehler_gibt_quellewege(self):
         self.antwort = httpx.Response(503)
         with self.assertRaises(quellen.QuelleWeg):
-            quellen.plane(FF, HD, JETZT)
+            quellen.plane(FF, ZIEL, JETZT)
 
     def test_kaputte_antwort_gibt_quellewege(self):
         self.antwort = httpx.Response(200, text="<html>Wartung</html>")
         with self.assertRaises(quellen.QuelleWeg):
-            quellen.plane(FF, HD, JETZT)
+            quellen.plane(FF, ZIEL, JETZT)
 
     def test_antwort_ohne_verbindungsliste_gibt_quellewege(self):
         self.antwort = {"fehler": "x"}
         with self.assertRaises(quellen.QuelleWeg):
-            quellen.plane(FF, HD, JETZT)
+            quellen.plane(FF, ZIEL, JETZT)
 
     def test_tagesdeckel_600_plan_aufrufe(self):
         self.antwort = {"itineraries": []}
         for _ in range(quellen.PLAN_DECKEL):
-            quellen.plane(FF, HD, JETZT)
+            quellen.plane(FF, ZIEL, JETZT)
         self.assertEqual(quellen.PLAN_DECKEL, 600)
         with self.assertRaises(quellen.QuelleWeg):
-            quellen.plane(FF, HD, JETZT)
+            quellen.plane(FF, ZIEL, JETZT)
 
     def test_nur_get(self):
-        self.antwort = probe("plan_ff_hd.json")
-        quellen.plane(FF, HD, JETZT)
+        self.antwort = probe("plan_probe.json")
+        quellen.plane(FF, ZIEL, JETZT)
         self.assertEqual({a.method for a in self.anfragen}, {"GET"})
 
 
@@ -175,6 +175,29 @@ class Zug(Basis):
                                 None, None, False, False, "x")
         self.assertTrue(quellen.stand_holen(alt).ausfall)
 
+    def eigene_strecke(self, daten):
+        self.antwort = daten
+        ganz = quellen.zug_stand("x")
+        von, nach = ganz.halte[1], ganz.halte[2]
+        return quellen.Abschnitt("nah", "S6", von.name, nach.name, von.ab_plan, von.ab, nach.an_plan, nach.an,
+                                 None, None, False, False, "x")
+
+    def test_ausfall_hinter_der_eigenen_strecke_ist_kein_ausfall(self):
+        daten = probe("trip_s6.json")
+        next(l for l in daten["legs"] if l["mode"] != "WALK")["to"]["cancelled"] = True
+        self.assertFalse(quellen.stand_holen(self.eigene_strecke(daten)).ausfall)
+
+    def test_ausfall_vor_der_eigenen_strecke_ist_kein_ausfall(self):
+        daten = probe("trip_s6.json")
+        next(l for l in daten["legs"] if l["mode"] != "WALK")["from"]["cancelled"] = True
+        self.assertFalse(quellen.stand_holen(self.eigene_strecke(daten)).ausfall)
+
+    def test_ganzer_zug_gestrichen_ist_ausfall(self):
+        for feld in ("cancelled", "tripCancelled"):
+            daten = probe("trip_s6.json")
+            next(l for l in daten["legs"] if l["mode"] != "WALK")[feld] = True
+            self.assertTrue(quellen.stand_holen(self.eigene_strecke(daten)).ausfall, feld)
+
     def test_stand_holen_ohne_bahnhof_gibt_quellewege(self):
         self.antwort = probe("trip_s6.json")
         ganz = quellen.zug_stand("x")
@@ -189,18 +212,33 @@ class Zug(Basis):
             quellen.zug_stand("weg")
 
 
+class Gleis(Basis):
+    def test_vorsaetze_fallen_weg(self):
+        for roh, gleis in (("Gl 2", "2"), ("Gl.1", "1"), ("Gl. 3", "3"), ("Gleis 7", "7"), ("Fern 5", "5"), ("4a/b", "4a/b"),
+                           ("12", "12"), ("", None), (None, None), ("Gl", None)):
+            self.assertEqual(quellen._gleis(roh), gleis, roh)
+
+    def test_abschnitt_und_halt_tragen_das_saubere_gleis(self):
+        daten = probe("trip_s6.json")
+        leg = next(l for l in daten["legs"] if l["mode"] != "WALK")
+        leg["from"]["track"], leg["to"]["track"] = "Gl 2", "Gl.1"
+        self.antwort = daten
+        zug = quellen.zug_stand("x")
+        self.assertEqual((zug.gleis_ab, zug.gleis_an, zug.halte[0].gleis, zug.halte[-1].gleis), ("2", "1", "2", "1"))
+
+
 class Orte(Basis):
     def test_haltestelle_steht_vor_gebaeuden(self):
         self.antwort = probe("geocode.json")
         orte = quellen.finde_ort("Darmstadt Hbf")
         self.assertEqual(orte[0].name, "Darmstadt Hbf")
-        self.assertEqual(orte[0].stop_id, "de-DELFI_de:08221:1160")
+        self.assertEqual(orte[0].stop_id, "stop-darmstadt-hbf")
 
     def test_nur_gebaeude_ist_trotzdem_ein_ort(self):
-        self.antwort = [{"type": "PLACE", "name": "Schloss", "lat": 49.4, "lon": 8.7, "id": "way/1"}]
+        self.antwort = [{"type": "PLACE", "name": "Schloss", "lat": 49.9, "lon": 8.6, "id": "way/1"}]
         orte = quellen.finde_ort("Schloss")
         self.assertEqual(orte[0].name, "Schloss")
         self.assertIsNone(orte[0].stop_id)
 
     def test_abstand_km(self):
-        self.assertAlmostEqual(quellen.abstand_km(FF, HD), 78, delta=2)
+        self.assertAlmostEqual(quellen.abstand_km(FF, ZIEL), 26, delta=2)

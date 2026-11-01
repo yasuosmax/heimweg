@@ -17,7 +17,7 @@ python -m heimweg.pin
 ```
 
 Die ausgegebene Zeile zusammen mit den Werten aus `.env.example` in die Umgebung des Dienstes legen, Vorlage:
-`deploy/heimweg-notfall.service`. Davor gehört ein Webserver mit HTTPS. Ohne gültige PIN-Einstellung bleibt die Seite
+`deploy/heimweg-notfall.service`. Der Dienst hört nur auf den Unix-Socket `/run/heimweg/notfall.sock`, davor gehört ein Webserver mit HTTPS (Caddy: `reverse_proxy unix//run/heimweg/notfall.sock`). Ohne gültige PIN-Einstellung bleibt die Seite
 gesperrt.
 
 ## Prüfen

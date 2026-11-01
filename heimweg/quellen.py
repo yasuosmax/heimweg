@@ -204,9 +204,14 @@ def _nummer(leg: dict) -> str | None:
     return nummer if nummer.isdigit() else None
 
 
+def _gleis(wert) -> str | None:
+    """Transitous schreibt "Gl 2", "Gl.1" oder "Fern 5", die Tafel "2". Verglichen wird nur die Bezeichnung."""
+    return re.sub(r"^\s*(?:Fern|Gleis|Gl)\b\.?\s*", "", wert or "").strip() or None
+
+
 def _halt(platz: dict) -> Halt:
     return Halt(platz.get("name") or "", _zeit_oder_nichts(platz.get("scheduledDeparture")),
-                _zeit_oder_nichts(platz.get("departure")), platz.get("track"), bool(platz.get("cancelled")),
+                _zeit_oder_nichts(platz.get("departure")), _gleis(platz.get("track")), bool(platz.get("cancelled")),
                 _zeit_oder_nichts(platz.get("scheduledArrival")), _zeit_oder_nichts(platz.get("arrival")))
 
 
@@ -219,7 +224,7 @@ def _abschnitt(leg: dict) -> Abschnitt:
         linie="" if fuss else _linie(leg), von=von.get("name") or "", nach=nach.get("name") or "",
         ab_plan=zeit(leg.get("scheduledStartTime") or leg["startTime"]), ab=zeit(leg["startTime"]),
         an_plan=zeit(leg.get("scheduledEndTime") or leg["endTime"]), an=zeit(leg["endTime"]),
-        gleis_ab=von.get("track"), gleis_an=nach.get("track"), live=bool(leg.get("realTime")),
+        gleis_ab=_gleis(von.get("track")), gleis_an=_gleis(nach.get("track")), live=bool(leg.get("realTime")),
         ausfall=bool(leg.get("cancelled") or leg.get("tripCancelled") or von.get("cancelled") or nach.get("cancelled")),
         trip_id=leg.get("tripId"), zugnummer=None if fuss else _nummer(leg),
         halte=[] if fuss else [_halt(von)] + [_halt(p) for p in leg.get("intermediateStops") or []] + [_halt(nach)])
@@ -244,9 +249,11 @@ def plane(von: Ort, nach: Ort, jetzt: dt.datetime, nur_regio: bool = False) -> l
 
 
 def zug_stand(trip_id: str) -> Abschnitt:
+    """Der ganze Zug. ausfall heisst hier: der ganze Zug faellt aus. Gestrichene Halte zaehlt stand_holen."""
     daten = _anfrage("/v5/trip", {"tripId": trip_id})
     try:
-        return next(_abschnitt(l) for l in daten["legs"] if l.get("mode") != "WALK")
+        leg = next(l for l in daten["legs"] if l.get("mode") != "WALK")
+        return replace(_abschnitt(leg), ausfall=bool(leg.get("cancelled") or leg.get("tripCancelled")))
     except (KeyError, TypeError, ValueError, AttributeError, StopIteration) as e:
         raise QuelleWeg("Transitous: Zug nicht gefunden") from e
 
@@ -355,10 +362,6 @@ def _zug_suchen(bahnhof: str, wann: dt.datetime, nummer: str, feld: str) -> Tafe
         return next((z for z in tafel(bahnhof, wann) if z.nummer == nummer and getattr(z, feld) == wann), None)
     except QuelleWeg:
         return None
-
-
-def _gleis(wert):
-    return (wert or "").replace("Fern", "").strip() or None
 
 
 def _pruefe(a: Abschnitt, jetzt: dt.datetime) -> Abschnitt:

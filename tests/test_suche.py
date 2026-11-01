@@ -11,8 +11,8 @@ from heimweg import quellen, suche
 
 BERLIN = ZoneInfo("Europe/Berlin")
 FF = quellen.Ort("Frankfurt Hbf", 50.1071, 8.6638)
-HD = quellen.Ort("Darmstadt Hbf", 49.4036, 8.6757, "de-DELFI_de:08221:1160")
-PROBE = json.loads((pathlib.Path(__file__).parent / "proben" / "plan_ff_hd.json").read_text(encoding="utf-8"))
+ZIEL = quellen.Ort("Darmstadt Hbf", 49.8723, 8.6297, "stop-darmstadt-hbf")
+PROBE = json.loads((pathlib.Path(__file__).parent / "proben" / "plan_probe.json").read_text(encoding="utf-8"))
 
 
 def uhr(h, m, tag=1):
@@ -42,7 +42,7 @@ class Basis(unittest.TestCase):
 
         with mock.patch.object(quellen, "plane", plane), \
                 mock.patch.object(quellen, "gegenprobe", lambda vb, j: vb):
-            return suche.finde_weg(FF, HD, jetzt, **kw)
+            return suche.finde_weg(FF, ZIEL, jetzt, **kw)
 
 
 class Echt(unittest.TestCase):
@@ -57,7 +57,7 @@ class Echt(unittest.TestCase):
         quellen.client_setzen(httpx.Client(transport=httpx.MockTransport(handler)))
         self.addCleanup(quellen.client_setzen, None)
         quellen.zaehler_leeren()
-        e = suche.finde_weg(FF, HD, uhr(4, 13))
+        e = suche.finde_weg(FF, ZIEL, uhr(4, 13))
         self.assertEqual(e.status, "ok")
         self.assertEqual(e.haupt.zuege[0].linie, "RB68")
         self.assertEqual(e.plan_b.zuege[0].linie, "RE70")
@@ -177,6 +177,13 @@ class Nacht(Basis):
         self.assertIn("Heute fährt nichts mehr", e.satz)
         self.assertIn("05:30", e.satz)
 
+    def test_frueher_fernzug_ist_nicht_heute_nichts(self):
+        regio = v(zug("RB68", uhr(23, 5), uhr(0, 25, 2)))
+        fern = v(zug("ICE 12", uhr(21, 15), uhr(22, 10), art="fern"))
+        e = self.suche([regio], alle=[regio, fern], jetzt=uhr(20, 30))
+        self.assertEqual(e.status, "ok")
+        self.assertNotIn("Heute fährt nichts mehr", e.satz)
+
     def test_tagsueber_keine_nachtwarnung(self):
         e = self.suche([v(zug("RB68", uhr(14, 30), uhr(15, 50)))], jetzt=uhr(11, 0))
         self.assertEqual(e.status, "ok")
@@ -199,7 +206,7 @@ class Unsicher(Basis):
 
     def test_start_am_ziel_heisst_schon_da(self):
         with mock.patch.object(quellen, "plane", side_effect=AssertionError("keine Suche")):
-            e = suche.finde_weg(HD, HD, uhr(4, 0))
+            e = suche.finde_weg(ZIEL, ZIEL, uhr(4, 0))
         self.assertEqual(e.status, "schon_da")
         self.assertIn("Darmstadt Hbf", e.satz)
 

@@ -1,9 +1,13 @@
+import asyncio
 import datetime as dt
 import json
+import pathlib
+import types
 import unittest
 from unittest import mock
 from zoneinfo import ZoneInfo
 
+import httpx
 from fastapi.testclient import TestClient
 
 from heimweg import notfall, pin, quellen, suche
@@ -11,7 +15,7 @@ from heimweg import notfall, pin, quellen, suche
 BERLIN = ZoneInfo("Europe/Berlin")
 HASH = pin.pin_hash("482913")
 ZIELE = "Darmstadt Hbf;Kassel Hbf"
-HBF = quellen.Ort("Darmstadt Hbf", 49.4036, 8.6757, "x")
+HBF = quellen.Ort("Darmstadt Hbf", 49.8723, 8.6297, "x")
 FF = quellen.Ort("Frankfurt Hbf", 50.1071, 8.6638, "y")
 
 
@@ -227,3 +231,33 @@ class Karte(unittest.TestCase):
         self.assertEqual(h["abschnitte"][0]["verspaetung"], 5)
         self.assertEqual(h["wechsel"], [{"ort": "Mannheim", "minuten": 4, "knapp": True}])
         self.assertIsNone(k["plan_b"])
+
+
+class Salve(unittest.TestCase):
+    def test_parallele_fehlversuche_ueberholen_die_bremse_nicht(self):
+        app = notfall.erstellen({"HEIM_PIN_HASH": HASH, "HEIM_ZIELE": ZIELE})
+
+        async def salve():
+            leitung = httpx.ASGITransport(app=app, client=("203.0.113.9", 1))
+            async with httpx.AsyncClient(transport=leitung, base_url="https://testserver") as c:
+                return await asyncio.gather(*[c.post("/pin", json={"pin": "000000"}) for _ in range(40)])
+
+        codes = [a.status_code for a in asyncio.run(salve())]
+        self.assertEqual((codes.count(403), codes.count(429)), (notfall.SPERRE_ADRESSE[0], 35))
+
+
+class Betrieb(unittest.TestCase):
+    def test_hinter_dem_socket_zaehlt_der_weitergeleitete_eintrag(self):
+        anfrage = types.SimpleNamespace(client=None, headers={"x-forwarded-for": "198.51.100.1, 203.0.113.7"})
+        self.assertEqual(notfall._adresse(anfrage), "203.0.113.7")
+
+    def test_dienst_kommt_nicht_an_die_eigene_maschine(self):
+        unit = (pathlib.Path(__file__).parent.parent / "deploy" / "heimweg-notfall.service").read_text(encoding="utf-8")
+        self.assertIn("--uds /run/heimweg/notfall.sock", unit)
+        self.assertNotIn("--port", unit)
+        self.assertIn("IPAddressDeny=localhost", unit)
+        self.assertIn("IPAddressAllow=127.0.0.53", unit)        # Namensaufloesung ueber systemd-resolved
+
+    def test_ungenauer_standort_fragt_nach_dem_bahnhof(self):
+        js = (pathlib.Path(notfall.__file__).parent / "notfall.js").read_text(encoding="utf-8")
+        self.assertIn("p.coords.accuracy > 1000", js)

@@ -130,7 +130,14 @@ $('standort').addEventListener('click', () => {
         return;
     }
     navigator.geolocation.getCurrentPosition(
-        (p) => suchen({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        (p) => {
+            if (p.coords.accuracy > 1000) {
+                $('such-hinweis').textContent = 'Standort zu ungenau. Gib einen Bahnhof ein.';
+                $('ort').focus();
+                return;
+            }
+            suchen({ lat: p.coords.latitude, lon: p.coords.longitude });
+        },
         () => {
             $('such-hinweis').textContent = 'Kein Standort. Gib einen Bahnhof ein.';
             $('ort').focus();

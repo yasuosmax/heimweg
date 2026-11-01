@@ -139,9 +139,10 @@ def finde_weg(start: Ort, ziel: Ort, jetzt: dt.datetime, nur_regio: bool = False
     nacht = jetzt.hour >= 20 or jetzt.hour < 5
     luecke = dt.timedelta(minutes=einst.nacht_luecke_min)
     abfahrt = haupt.zuege[0].ab
-    if nacht and abfahrt - jetzt >= luecke:
+    erste = min([abfahrt] + ([schnellster.zuege[0].ab] if schnellster else []))
+    if nacht and erste - jetzt >= luecke:
         status = "heute_nichts"
-        warnungen.insert(0, f"Heute fährt nichts mehr. Die erste Verbindung geht um {abfahrt:%H:%M}.")
+        warnungen.insert(0, f"Heute fährt nichts mehr. Die erste Verbindung geht um {erste:%H:%M}.")
     elif nacht and plan_b is not None and plan_b.zuege[0].ab - abfahrt >= luecke:
         warnungen.append(f"Das ist die letzte Verbindung heute, danach erst um {plan_b.zuege[0].ab:%H:%M}.")
     warnungen += [f"Knapper Umstieg in {o}: {m} Minuten." for o, m in _umstiege(haupt) if m < einst.knapp_min]
