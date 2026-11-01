@@ -55,6 +55,8 @@ class Halt:
     ab: dt.datetime | None
     gleis: str | None
     ausfall: bool
+    an_plan: dt.datetime | None = None
+    an: dt.datetime | None = None
 
 
 @dataclass
@@ -204,7 +206,8 @@ def _nummer(leg: dict) -> str | None:
 
 def _halt(platz: dict) -> Halt:
     return Halt(platz.get("name") or "", _zeit_oder_nichts(platz.get("scheduledDeparture")),
-                _zeit_oder_nichts(platz.get("departure")), platz.get("track"), bool(platz.get("cancelled")))
+                _zeit_oder_nichts(platz.get("departure")), platz.get("track"), bool(platz.get("cancelled")),
+                _zeit_oder_nichts(platz.get("scheduledArrival")), _zeit_oder_nichts(platz.get("arrival")))
 
 
 def _abschnitt(leg: dict) -> Abschnitt:
@@ -246,6 +249,21 @@ def zug_stand(trip_id: str) -> Abschnitt:
         return next(_abschnitt(l) for l in daten["legs"] if l.get("mode") != "WALK")
     except (KeyError, TypeError, ValueError, AttributeError, StopIteration) as e:
         raise QuelleWeg("Transitous: Zug nicht gefunden") from e
+
+
+def stand_holen(a: Abschnitt) -> Abschnitt:
+    """Der neue Stand eines Abschnitts. Transitous liefert den ganzen Zug, gebraucht wird nur die eigene Strecke."""
+    zug = zug_stand(a.trip_id)
+    namen = [h.name for h in zug.halte]
+    try:
+        i = namen.index(a.von)
+        j = namen.index(a.nach, i + 1)
+    except ValueError as e:
+        raise QuelleWeg("Transitous: Halt nicht im Zug") from e
+    von, nach = zug.halte[i], zug.halte[j]
+    return replace(a, ab=von.ab or a.ab, an=nach.an or a.an, gleis_ab=von.gleis or a.gleis_ab,
+                   gleis_an=nach.gleis or a.gleis_an, live=zug.live, ausfall=zug.ausfall or von.ausfall or nach.ausfall,
+                   halte=zug.halte[i:j + 1])
 
 
 def finde_ort(text: str) -> list[Ort]:

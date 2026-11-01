@@ -151,6 +151,38 @@ class Zug(Basis):
         self.assertEqual(a.halte[-1].name, a.nach)
         self.assertEqual(self.anfragen[0].url.params["tripId"], "irgendeine-kennung")
 
+    def test_stand_holen_schneidet_auf_den_eigenen_abschnitt(self):
+        self.antwort = probe("trip_s6.json")
+        ganz = quellen.zug_stand("x")
+        von, nach = ganz.halte[1], ganz.halte[3]
+        alt = quellen.Abschnitt("nah", "S6", von.name, nach.name, von.ab_plan, von.ab, nach.an_plan, nach.an,
+                                None, None, False, False, "x")
+        a = quellen.stand_holen(alt)
+        self.assertEqual([h.name for h in a.halte], [h.name for h in ganz.halte[1:4]])
+        self.assertEqual(a.ab, von.ab)
+        self.assertEqual(a.an, nach.an)
+        self.assertEqual(a.an_plan, alt.an_plan)
+        self.assertEqual(a.live, ganz.live)
+
+    def test_stand_holen_ausgefallener_halt_gilt_als_ausfall(self):
+        daten = probe("trip_s6.json")
+        leg = next(l for l in daten["legs"] if l["mode"] != "WALK")
+        leg["intermediateStops"][1]["cancelled"] = True
+        self.antwort = daten
+        ganz = quellen.zug_stand("x")
+        von, nach = ganz.halte[1], ganz.halte[2]
+        alt = quellen.Abschnitt("nah", "S6", von.name, nach.name, von.ab_plan, von.ab, nach.an_plan, nach.an,
+                                None, None, False, False, "x")
+        self.assertTrue(quellen.stand_holen(alt).ausfall)
+
+    def test_stand_holen_ohne_bahnhof_gibt_quellewege(self):
+        self.antwort = probe("trip_s6.json")
+        ganz = quellen.zug_stand("x")
+        alt = quellen.Abschnitt("nah", "S6", "Gibt es nicht", ganz.halte[-1].name, JETZT, JETZT, JETZT, JETZT,
+                                None, None, False, False, "x")
+        with self.assertRaises(quellen.QuelleWeg):
+            quellen.stand_holen(alt)
+
     def test_zug_stand_ohne_zug_gibt_quellewege(self):
         self.antwort = {"legs": []}
         with self.assertRaises(quellen.QuelleWeg):

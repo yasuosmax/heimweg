@@ -148,6 +148,24 @@ class Auswahl(Basis):
         self.assertTrue(e.satz.startswith("Knapper"))
 
 
+class PlanBSatz(Basis):
+    def test_nimmt_die_beste_verbindung_mit_anderem_zug(self):
+        e = self.suche([v(zug("RB68", uhr(5, 0), uhr(6, 0), trip="eins")), v(zug("RE70", uhr(5, 30), uhr(6, 30), trip="zwei"))])
+        self.assertEqual(suche.plan_b_satz(e, {"zwei"}), "Plan B: RB68 um 05:00 von Gleis 12, an 06:00.")
+
+    def test_meidet_den_eigenen_zug(self):
+        e = self.suche([v(zug("RB68", uhr(5, 0), uhr(6, 0), trip="eins")), v(zug("RE70", uhr(5, 30), uhr(6, 30), trip="zwei"))])
+        self.assertEqual(suche.plan_b_satz(e, {"eins"}), "Plan B: RE70 um 05:30 von Gleis 12, an 06:30.")
+
+    def test_ohne_quelle_sagt_das(self):
+        e = self.suche(quellen.QuelleWeg("weg"))
+        self.assertEqual(suche.plan_b_satz(e, set()), "Einen Plan B finde ich gerade nicht, schau im DB Navigator nach.")
+
+    def test_ohne_andere_verbindung_sagt_das(self):
+        e = self.suche([v(zug("RB68", uhr(5, 0), uhr(6, 0), trip="eins"))])
+        self.assertIn("Einen Plan B finde ich gerade nicht", suche.plan_b_satz(e, {"eins"}))
+
+
 class Nacht(Basis):
     def test_um_2350_ist_0010_noch_heute(self):
         e = self.suche([v(zug("RB68", uhr(0, 10, 2), uhr(1, 30, 2)))], jetzt=uhr(23, 50))

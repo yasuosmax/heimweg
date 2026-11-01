@@ -164,6 +164,14 @@ def finde_weg(start: Ort, ziel: Ort, jetzt: dt.datetime, nur_regio: bool = False
     return Ergebnis(status, satz=" ".join(saetze), **leer)
 
 
+def plan_b_satz(e: Ergebnis, meiden: set[str]) -> str:
+    """Fuer eine Meldung unterwegs: die beste Verbindung, die nicht mit einem der gemiedenen Zuege beginnt."""
+    for v in (e.haupt, e.plan_b):
+        if v is not None and v.zuege[0].trip_id not in meiden:
+            return f"Plan B: {_abfahrt(v.zuege[0])}, an {v.an:%H:%M}."
+    return "Einen Plan B finde ich gerade nicht, schau im DB Navigator nach."
+
+
 def _abschnitt_karte(a: quellen.Abschnitt) -> dict:
     return {"art": a.art, "linie": a.linie, "von": a.von, "nach": a.nach, "ab": f"{a.ab:%H:%M}", "an": f"{a.an:%H:%M}",
             "gleis_ab": a.gleis_ab, "gleis_an": a.gleis_an, "live": a.live, "geprueft": a.geprueft,
